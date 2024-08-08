@@ -116,3 +116,104 @@ class _MapScreenState extends State<MapScreen> {
       }
     });
   }
+
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<GmBloc, GmState>(
+      listener: (context, state) {
+        final launchMockList = context
+            .read<GmBloc>()
+            .state
+            .launchMapMarks
+            .map((item) => [item.launch, item.landing])
+            .toList();
+        _launchPoints = launchMockList;
+        _initializeAnimatedPoints();
+        _animatePolyline2();
+        if (!state.serviceEnabled && state.getCurrentLocation) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Location services are disabled. Please enable the services')));
+        } else if (state.locationPermission == LocationPermission.denied) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Location permissions are denied')));
+        } else if (state.locationPermission ==
+            LocationPermission.deniedForever) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Location permissions are permanently denied, we cannot request permissions.')));
+        }
+        if (state.showWarning) {
+          showDialog(
+              context: context,
+              builder: (_) => const CustomAlertDialog(
+                  textMessage: 'You are near a Launch site'));
+        }
+      },
+      builder: (context, state) {
+        // final List<List<LatLng>> launchMockList = state.launchMapMarks
+        //     .map((item) => [item.launch, item.landing])
+        //     .toList();
+        // _launchPoints = launchMockList;
+
+        // print('launch$launchMockList');
+        if (state.isLoading) {
+          return const CustomLoader();
+        }
+        if (state.errorOccured && state.isLoaded) {
+          return const CustomErrorScreen(error: 'Error Occured');
+        }
+        if (state.isLoaded && !state.isLoading && !state.errorOccured) {
+          return Stack(
+            children: [
+              FlutterMap(
+                options: MapOptions(
+                  onMapEvent: (e) {},
+                  initialCenter: const LatLng(51.509364, -0.128928),
+                  initialZoom: 8,
+                  onMapReady: () async {},
+                ),
+                mapController: mapController,
+                children: [
+                  TileLayer(
+                      tileBuilder: (context, tileWidget, tile) {
+                        return ColorFiltered(
+                            colorFilter: const ColorFilter.matrix(<double>[
+                              0.2126,
+                              0.7152,
+                              0.0722,
+                              0,
+                              0,
+                              0.2126,
+                              0.7152,
+                              0.0722,
+                              0,
+                              0,
+                              0.2126,
+                              0.7152,
+                              0.0722,
+                              0,
+                              0,
+                              0,
+                              0,
+                              0,
+                              1,
+                              0
+                            ]),
+                            child: tileWidget);
+                      },
+                      tileDisplay: const TileDisplay.fadeIn(),
+                      urlTemplate: mapApi,
+                      userAgentPackageName: 'com.example.app'),
+                  PolylineLayer(
+                    polylines: _animatedPointsList.map((points) {
+                      return Polyline(
+                          points: points, strokeWidth: 4.0, color: Colors.blue);
+                    }).toList(),
+                  ),
+                  MarkerLayer(markers: [
+                    ...state.launchMapMarks
+                        .map((item) => Marker(
+                            point: item.launch,
+                            child: Icon(Icons.location_on_sharp,
